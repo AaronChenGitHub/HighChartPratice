@@ -1,0 +1,456 @@
+﻿@{
+    ViewData["Title"] = "股票走勢圖";
+}
+
+<div class="stock-info">
+    <span id="date"></span>
+    <span id="price" class="price"></span>
+    <span id="change" class="change"></span>
+    <span class="info-item">開<span id="open"></span></span>
+    <span class="info-item">高<span id="high"></span></span>
+    <span class="info-item">低<span id="low"></span></span>
+    <span class="info-item">量<span id="volume"></span></span>
+</div>
+<div class="chart-container" id="stockChart"></div>
+
+@section Scripts {
+    @* 股票圖表 *@
+  <script src="https://code.highcharts.com/stock/highstock.js"></script>
+    @* 允許拖曳調整圖表區塊大小 *@
+  <script src="https://code.highcharts.com/stock/modules/drag-panes.js"></script>
+    @* 在圖表右側顯示最新價格線 *@
+  <script src="https://code.highcharts.com/modules/price-indicator.js"></script>
+    @* 提供全螢幕顯示功能 *@
+  <script src="https://code.highcharts.com/modules/full-screen.js"></script>
+    @* 支援無障礙瀏覽（如螢幕閱讀器支援） *@
+  <script src="https://code.highcharts.com/modules/accessibility.js"></script>
+
+  <script>
+    $(document).ready(function () {
+      let chart;
+      let originalOHLCData = [];
+      let originalVolumeData = [];
+
+      function processVolumeColor(volumeData, ohlcData) {
+        if (!volumeData?.length || !ohlcData?.length) {
+          return [];
+        }
+
+        return volumeData.map((volume, index) => {
+          const ohlc = ohlcData[index];
+          if (!ohlc) return volume;
+
+          const [timestamp, volumeValue] = volume;
+          const [, open, , , close] = ohlc;
+
+          return {
+            x: timestamp,
+            y: volumeValue,
+           // 當 open > close (跌) 時顯示綠色
+           // 當 open < close (漲) 時顯示紅色
+           // 當 open = close (平盤) 時顯示黑色
+           color: open > close ? "#009900" : open < close ? "#ff0000" : "#a6a6a6"
+          };
+        });
+      }
+
+      function updateHeader(point, volume) {
+        if (!point || !volume) {
+          return;
+        }
+
+        try {
+          const date = Highcharts.dateFormat("%Y-%m-%d", point.x);
+          const close = point.close;
+          const open = point.open;
+          const high = point.high;
+          const low = point.low;
+          const change = close - open;
+          const changePercent = ((change / open) * 100).toFixed(2);
+          const sign = change >= 0 ? "▲" : "▼";
+          const absChange = Math.abs(change);
+          const changeText = `${sign} ${absChange.toFixed(0)} (${Math.abs(
+            changePercent
+          )}%)`;
+
+          $("#date").text(date);
+          $("#price").text(close.toFixed(0));
+          $("#change").text(changeText);
+          $("#open").text(open.toFixed(0));
+          $("#high").text(high.toFixed(0));
+          $("#low").text(low.toFixed(0));
+          $("#volume").text(Highcharts.numberFormat(volume.y, 0));
+
+          const priceClass = change >= 0 ? "price-up" : "price-down";
+          $("#price, #change")
+            .removeClass("price-up price-down")
+            .addClass(priceClass);
+        } catch (error) {
+          console.error("更新標題資訊時發生錯誤:", error);
+        }
+      }
+
+      const chartConfig = {
+        chart: {
+          animation: false,
+          events: {
+            load: function () {
+              this.crosshairs = this.xAxis[0].addPlotLine({
+                value: 0,
+                color: '#cccccc',
+                width: 1,
+                dashStyle: 'dash',
+                id: 'crosshair'
+              });
+            },
+                redraw: function() {
+          const lastPoint = this.series[0].points[this.series[0].points.length - 1];
+          const lastVolume = this.series[1].points[this.series[1].points.length - 1];
+          if (lastPoint && lastVolume) {
+            updateHeader({
+              x: lastPoint.x,
+              open: lastPoint.open,
+              high: lastPoint.high,
+              low: lastPoint.low,
+              close: lastPoint.close
+            }, lastVolume);
+          }
+        }
+          }
+        },
+
+        title: {
+          text: "",
+          align: "center",
+          style: {
+            color: "#333",
+            fontSize: "20px",
+            fontWeight: "bold",
+            fontFamily: "Arial, sans-serif"
+          },
+          y: 30
+        },
+
+        stockTools: {
+          gui: {
+            enabled: false
+          }
+        },
+
+        xAxis: {
+          gridLineWidth: 1,
+          gridLineColor: '#f0f0f0',
+          gridLineDashStyle: 'dash',
+          crosshair: {
+            enabled: true,
+            color: '#cccccc',
+            width: 1,
+            snap: true,
+            dashStyle: 'dash',
+            label: {
+              enabled: true,
+              padding: 5,
+              backgroundColor: 'rgba(10, 10, 100, 0.75)',
+              format: '{value:%Y/%m/%d}'
+            }
+          },
+          labels: {
+            formatter: function () {
+              return Highcharts.dateFormat('%Y/%m/%d', this.value);
+            }
+          }
+        },
+
+        yAxis: [
+          {
+            labels: {
+              align: "left",
+              formatter: function () {
+                return Highcharts.numberFormat(this.value, 2);
+              }
+            },
+            height: "80%",
+            gridZIndex: 4,
+            showGrid: true,
+            minorGridLineWidth: 0,
+            gridLineWidth: 1,
+            gridLineColor: '#f0f0f0',
+            gridLineDashStyle: 'dash',
+            resize: {
+              enabled: true
+            },
+            crosshair: {
+              enabled: true,
+              color: '#cccccc',
+              width: 1,
+              dashStyle: 'dash',
+              snap: true,
+              label: {
+                enabled: true,
+                padding: 5,
+                backgroundColor: 'rgba(10, 10, 100, 0.75)',
+                format: '{value:.2f}'
+              }
+            }
+          },
+          {
+            labels: {
+              align: "left",
+              formatter: function () {
+                return Highcharts.numberFormat(this.value, 0);
+              }
+            },
+            top: "80%",
+            height: "20%",
+            grid: {
+              enabled: true
+            },
+            gridZIndex: 4,
+            showGrid: true,
+            minorGridLineWidth: 0,
+            gridLineWidth: 1,
+            gridLineColor: '#f0f0f0',
+            gridLineDashStyle: 'dash',
+            offset: 0,
+            crosshair: {
+              enabled: true,
+              color: '#cccccc',
+              width: 1,
+              dashStyle: 'dash',
+              snap: true,
+              label: {
+                enabled: true,
+                padding: 5,
+                backgroundColor: 'rgba(10, 10, 100, 0.75)',
+                format: '{value:,.0f}'
+              }
+            }
+          }
+        ],
+
+        tooltip: {
+          enabled: false,
+          shape: "square",
+          headerShape: "callout",
+          borderWidth: 0,
+          shadow: false,
+          shared: true,
+          split: false,
+          crosshairs: true,
+          positioner: function (width, height, point) {
+            const chart = this.chart;
+            if (point.formatPrefix === "point") {
+              return {
+                x: point.series.chart.plotLeft,
+                y: point.series.yAxis.top - chart.plotTop,
+              };
+            }
+            return {
+              x: Math.max(
+                chart.plotLeft,
+                Math.min(
+                  point.plotX + chart.plotLeft - width / 2,
+                  chart.chartWidth - width - chart.marginRight
+                )
+              ),
+              y: point.plotY,
+            };
+          }
+        },
+
+        plotOptions: {
+          series: {
+            animation: false,
+            stickyTracking: true
+          }
+        },
+
+        rangeSelector: {
+          selected: 4,
+                buttons: [{
+          type: 'month',
+          count: 1,
+          text: '1m'
+        }, {
+          type: 'month',
+          count: 3,
+          text: '3m'
+        }, {
+          type: 'month',
+          count: 6,
+          text: '6m'
+        }, {
+          type: 'ytd',
+          text: 'YTD'
+        }, {
+          type: 'year',
+          count: 1,
+          text: '1y'
+        }, {
+          type: 'all',
+          text: 'All'
+        }],
+        events: {
+          afterSetExtremes: function() {
+            if (chart.series[0].points.length > 0) {
+              const lastPoint = chart.series[0].points[chart.series[0].points.length - 1];
+              const lastVolume = chart.series[1].points[chart.series[1].points.length - 1];
+              updateHeader({
+                x: lastPoint.x,
+                open: lastPoint.open,
+                high: lastPoint.high,
+                low: lastPoint.low,
+                close: lastPoint.close
+              }, lastVolume);
+            }
+          }
+        }
+        },
+
+        series: [
+          {
+            type: "candlestick",
+            id: "stock-candlestick",
+            name: "股價",
+            data: [],
+            color: "#009900",
+            upColor: "#ff0000",
+            lineColor: "#009900",
+            upLineColor: "#ff0000",
+            dataGrouping: {
+              groupPixelWidth: 20,
+                  forced: true
+            },
+            point: {
+              events: {
+                mouseOver: function () {
+                  const volumePoint = chart.series[1].points[this.index];
+                  if (volumePoint) {
+                    updateHeader({
+                      x: this.x,
+                      open: this.open,
+                      high: this.high,
+                      low: this.low,
+                      close: this.close
+                    }, volumePoint);
+                  }
+                }
+              }
+            }
+          },
+          {
+            type: "column",
+            id: "stock-volume",
+            name: "成交量",
+            data: [],
+            yAxis: 1
+          }
+        ],
+
+        responsive: {
+          rules: [
+            {
+              condition: {
+                maxWidth: 800
+              },
+              chartOptions: {
+                rangeSelector: {
+                  inputEnabled: false
+                }
+              }
+            }
+          ]
+        }
+      };
+
+      chart = Highcharts.stockChart("stockChart", chartConfig);
+
+      $.getJSON("/Chart/GetStockData", function (data) {
+        if (!data?.ohlc?.length) {
+          return;
+        }
+
+        try {
+          if (data.stockInfo.code && data.stockInfo.name) {
+            chart.setTitle({ text: `${data.stockInfo.name}(${data.stockInfo.code})` });
+          }
+
+          originalOHLCData = data.ohlc;
+          originalVolumeData = data.volume;
+
+          const processedVolume = processVolumeColor(
+            originalVolumeData,
+            originalOHLCData
+          );
+
+          if (chart && originalOHLCData.length > 0) {
+            chart.series[0].setData(originalOHLCData, false);
+            chart.series[1].setData(processedVolume, false);
+            chart.redraw();
+
+            const [timestamp, open, high, low, close] = originalOHLCData[0];
+            const firstVolumePoint = processedVolume[0];
+
+            if (firstVolumePoint) {
+              updateHeader(
+                {
+                  x: timestamp,
+                  open,
+                  high,
+                  low,
+                  close,
+                },
+                firstVolumePoint
+              );
+            }
+          }
+        } catch (error) {
+          console.error("處理資料時發生錯誤:", error);
+          console.log("錯誤詳情:", {
+            data: data,
+            error: error.message,
+          });
+        }
+      });
+    });
+    </script>
+}
+
+@section Styles {
+    <style>
+        .stock-info {
+            font-family: Arial, sans-serif;
+            padding: 10px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .info-item {
+            color: #666;
+        }
+
+        .price, .change {
+            font-weight: bold;
+            font-size: 15px;
+        }
+
+        .price-up {
+            color: #ff0000;
+        }
+
+        .price-down {
+            color: #009900;
+        }
+
+        .chart-container {
+            width: 100%;
+            height: 600px;
+            margin: 0 auto;
+        }
+
+    </style>
+}
