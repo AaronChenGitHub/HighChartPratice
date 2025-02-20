@@ -1,35 +1,274 @@
 ﻿@{
-    ViewData["Title"] = "股票走勢圖";
+  ViewData["Title"] = "股票走勢圖";
 }
 
-<div class="stock-info">
-    <span id="date"></span>
-    <span id="price" class="price"></span>
-    <span id="change" class="change"></span>
-    <span class="info-item">開<span id="open"></span></span>
-    <span class="info-item">高<span id="high"></span></span>
-    <span class="info-item">低<span id="low"></span></span>
-    <span class="info-item">量<span id="volume"></span></span>
+<div class="control-panel">
+  <div class="select-group">
+    <select class="chart-type-select">
+      <option value="candlestick">K線及均線</option>
+      <option value="volume">成交量</option>
+    </select>
+    <button class="settings-btn">設定</button>
+  </div>
 </div>
+
+<div class="ma-settings-modal" style="display: none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>參數設定</h3>
+    </div>
+    <div class="ma-settings-grid">
+      <div class="ma-item">
+        <label>MA1</label>
+        <input type="number" id="ma1" value="5" min="1">
+      </div>
+      <div class="ma-item">
+        <label>MA2</label>
+        <input type="number" id="ma2" value="10" min="1">
+      </div>
+      <div class="ma-item">
+        <label>MA3</label>
+        <input type="number" id="ma3" value="20" min="1">
+      </div>
+      <div class="ma-item">
+        <label>MA4</label>
+        <input type="number" id="ma4" value="60" min="1">
+      </div>
+      <div class="ma-item">
+        <label>MA5</label>
+        <input type="number" id="ma5" value="120" min="1">
+      </div>
+      <div class="ma-item">
+        <label>MA6</label>
+        <input type="number" id="ma6" value="240" min="1">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="reset-btn">還原</button>
+      <button class="confirm-btn">確認</button>
+      <button class="cancel-btn">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="stock-info">
+  <span id="date"></span>
+  <span id="price" class="price"></span>
+  <span id="change" class="change"></span>
+  <span class="info-item">開<span id="open"></span></span>
+  <span class="info-item">高<span id="high"></span></span>
+  <span class="info-item">低<span id="low"></span></span>
+  <span class="info-item">量<span id="volume"></span></span>
+</div>
+
+<div class="ma-controls">
+  <span class="ma-title">K線及均線</span>
+  <label>
+    <input type="checkbox" class="ma-toggle" data-series-index="1" data-period="5" checked>
+    MA<span class="ma-period">5</span>
+    <span class="ma-value" data-ma-index="1" id="ma-value-1">--</span>
+  </label>
+  <label>
+    <input type="checkbox" class="ma-toggle" data-series-index="2" data-period="10" checked>
+    MA<span class="ma-period">10</span>
+    <span class="ma-value" data-ma-index="2" id="ma-value-2">--</span>
+  </label>
+  <label>
+    <input type="checkbox" class="ma-toggle" data-series-index="3" data-period="20" checked>
+    MA<span class="ma-period">20</span>
+    <span class="ma-value" data-ma-index="3" id="ma-value-3">--</span>
+  </label>
+  <label>
+    <input type="checkbox" class="ma-toggle" data-series-index="4" data-period="60" checked>
+    MA<span class="ma-period">60</span>
+    <span class="ma-value" data-ma-index="4" id="ma-value-4">--</span>
+  </label>
+  <label>
+    <input type="checkbox" class="ma-toggle" data-series-index="5" data-period="120" checked>
+    MA<span class="ma-period">120</span>
+    <span class="ma-value" data-ma-index="5" id="ma-value-5">--</span>
+  </label>
+  <label>
+    <input type="checkbox" class="ma-toggle" data-series-index="6" data-period="240" checked>
+    MA<span class="ma-period">240</span>
+    <span class="ma-value" data-ma-index="6" id="ma-value-6">--</span>
+  </label>
+</div>
+
 <div class="chart-container" id="stockChart"></div>
 
+
+
 @section Scripts {
-    @* 股票圖表 *@
+  @* 股票圖表 *@
   <script src="https://code.highcharts.com/stock/highstock.js"></script>
-    @* 允許拖曳調整圖表區塊大小 *@
+  @* 允許拖曳調整圖表區塊大小 *@
   <script src="https://code.highcharts.com/stock/modules/drag-panes.js"></script>
-    @* 在圖表右側顯示最新價格線 *@
+  @* 在圖表右側顯示最新價格線 *@
   <script src="https://code.highcharts.com/modules/price-indicator.js"></script>
-    @* 提供全螢幕顯示功能 *@
+  @* 提供全螢幕顯示功能 *@
   <script src="https://code.highcharts.com/modules/full-screen.js"></script>
-    @* 支援無障礙瀏覽（如螢幕閱讀器支援） *@
+  @* 支援無障礙瀏覽（如螢幕閱讀器支援） *@
   <script src="https://code.highcharts.com/modules/accessibility.js"></script>
+  <script src="https://code.highcharts.com/stock/indicators/indicators.js"></script>
+  <script src="https://code.highcharts.com/stock/indicators/sma.js"></script>
 
   <script>
     $(document).ready(function () {
       let chart;
       let originalOHLCData = [];
       let originalVolumeData = [];
+
+      // 定義均線顏色映射
+      const maColors = {
+        1: '#3366FF',  // 藍色
+        2: '#FF9900',  // 橘色
+        3: '#FF0000',  // 紅色
+        4: '#009900',  // 綠色
+        5: '#9933FF',  // 紫色
+        6: '#996633'   // 棕色
+      };
+
+      // MA 線的顯示控制
+      $('.ma-toggle').on('change', function () {
+        const index = $(this).data('series-index');
+        const series = chart.series[index + 1]; // +1 因為第一個series是K線
+        if (series) {
+          if (this.checked) {
+            series.show();
+          } else {
+            series.hide();
+          }
+        }
+      });
+
+      // 設定按鈕點擊事件
+      $('.settings-btn').on('click', function () {
+        if ($('.chart-type-select').val() === 'candlestick') {
+          $('.ma-settings-modal').show();
+        }
+      });
+
+      // 取消按鈕
+      $('.cancel-btn').on('click', function () {
+        $('.ma-settings-modal').hide();
+      });
+
+      // 還原按鈕
+      $('.reset-btn').on('click', function () {
+        $('#ma1').val(5);
+        $('#ma2').val(10);
+        $('#ma3').val(20);
+        $('#ma4').val(60);
+        $('#ma5').val(120);
+        $('#ma6').val(240);
+      });
+
+      // 確認按鈕
+      $('.confirm-btn').on('click', function () {
+        // 獲取新的均線參數
+        const periods = {
+          ma1: parseInt($('#ma1').val()),
+          ma2: parseInt($('#ma2').val()),
+          ma3: parseInt($('#ma3').val()),
+          ma4: parseInt($('#ma4').val()),
+          ma5: parseInt($('#ma5').val()),
+          ma6: parseInt($('#ma6').val())
+        };
+
+        // 更新每個均線
+        Object.keys(periods).forEach((key, index) => {
+          updateMAPeriod(index + 1, periods[key]);
+        });
+
+        $('.ma-settings-modal').hide();
+      });
+
+      function updateMAPeriod(index, newPeriod) {
+        // 更新 HTML
+        $(`.ma-toggle[data-series-index="${index}"]`)
+          .data('period', newPeriod)
+          .siblings('.ma-period')
+          .text(newPeriod);
+
+        // 更新圖表
+        const newSeries = {
+          type: 'sma',
+          name: `MA${newPeriod}`,
+          linkedTo: 'stock-candlestick',
+          data: [],
+          params: { period: newPeriod },
+          color: maColors[index],
+          lineWidth: 1,
+          dashStyle: 'solid',
+          step: false,
+          enableMouseTracking: false,
+          marker: { enabled: false },
+          states: { hover: { enabled: false } },
+          animation: false
+        };
+
+        chart.series[index + 1].update(newSeries, false);
+        chart.redraw();
+      }
+
+      function updateMAValues(ohlcData, currentIndex) {
+        if (!ohlcData || ohlcData.length === 0) return;
+
+        // 取得當前K線點
+        const candlePoint = chart.series[0].points[currentIndex];
+        if (!candlePoint) return;
+
+        const currentTime = candlePoint.x;
+
+        $('.ma-toggle').each(function () {
+          const $toggle = $(this);
+          const seriesIndex = parseInt($toggle.data('series-index'));
+          const element = $(`#ma-value-${seriesIndex}`);
+          const maSeries = chart.series[seriesIndex + 1];
+
+          if (!maSeries || !maSeries.visible) {
+            element.text('--');
+            return;
+          }
+
+          // 找到最近的均線點
+          let maPoint = null;
+          let closestTimeDiff = Infinity;
+
+          // 遍歷所有點找最近的
+          for (let i = 0; i < maSeries.points.length; i++) {
+            const point = maSeries.points[i];
+            if (!point) continue;
+
+            const timeDiff = Math.abs(point.x - currentTime);
+            if (timeDiff < closestTimeDiff) {
+              closestTimeDiff = timeDiff;
+              maPoint = point;
+            }
+          }
+
+          if (maPoint && typeof maPoint.y !== 'undefined') {
+            const value = maPoint.y;
+            const formattedValue = value.toFixed(2);
+
+            // 找前一個點
+            const maPointIndex = maSeries.points.indexOf(maPoint);
+            const prevPoint = maPointIndex > 0 ? maSeries.points[maPointIndex - 1] : null;
+            const prevValue = prevPoint ? prevPoint.y : value;
+
+            if (value > prevValue) {
+              element.text(formattedValue + '↑');
+            } else if (value < prevValue) {
+              element.text(formattedValue + '↓');
+            } else {
+              element.text(formattedValue);
+            }
+          } else {
+            element.text('--');
+          }
+        });
+      }
 
       function processVolumeColor(volumeData, ohlcData) {
         if (!volumeData?.length || !ohlcData?.length) {
@@ -46,10 +285,10 @@
           return {
             x: timestamp,
             y: volumeValue,
-           // 當 open > close (跌) 時顯示綠色
-           // 當 open < close (漲) 時顯示紅色
-           // 當 open = close (平盤) 時顯示黑色
-           color: open > close ? "#009900" : open < close ? "#ff0000" : "#a6a6a6"
+            // 當 open > close (跌) 時顯示綠色
+            // 當 open < close (漲) 時顯示紅色
+            // 當 open = close (平盤) 時顯示黑色
+            color: open > close ? "#009900" : open < close ? "#ff0000" : "#a6a6a6"
           };
         });
       }
@@ -103,19 +342,21 @@
                 id: 'crosshair'
               });
             },
-                redraw: function() {
-          const lastPoint = this.series[0].points[this.series[0].points.length - 1];
-          const lastVolume = this.series[1].points[this.series[1].points.length - 1];
-          if (lastPoint && lastVolume) {
-            updateHeader({
-              x: lastPoint.x,
-              open: lastPoint.open,
-              high: lastPoint.high,
-              low: lastPoint.low,
-              close: lastPoint.close
-            }, lastVolume);
-          }
-        }
+            redraw: function () {
+              const lastPoint = this.series[0].points[this.series[0].points.length - 1];
+              const lastVolume = this.series[1].points[this.series[1].points.length - 1];
+              if (lastPoint && lastVolume) {
+                updateHeader({
+                  x: lastPoint.x,
+                  open: lastPoint.open,
+                  high: lastPoint.high,
+                  low: lastPoint.low,
+                  close: lastPoint.close
+                }, lastVolume);
+
+                updateMAValues(originalOHLCData, lastPoint.index);
+              }
+            }
           }
         },
 
@@ -261,50 +502,78 @@
         plotOptions: {
           series: {
             animation: false,
-            stickyTracking: true
+            stickyTracking: true,
+            lastVisiblePrice: {
+              enabled: true,
+              label: {
+                enabled: false
+              }
+            }
           }
         },
 
         rangeSelector: {
-          selected: 4,
-                buttons: [{
-          type: 'month',
-          count: 1,
-          text: '1m'
-        }, {
-          type: 'month',
-          count: 3,
-          text: '3m'
-        }, {
-          type: 'month',
-          count: 6,
-          text: '6m'
-        }, {
-          type: 'ytd',
-          text: 'YTD'
-        }, {
-          type: 'year',
-          count: 1,
-          text: '1y'
-        }, {
-          type: 'all',
-          text: 'All'
-        }],
-        events: {
-          afterSetExtremes: function() {
-            if (chart.series[0].points.length > 0) {
-              const lastPoint = chart.series[0].points[chart.series[0].points.length - 1];
-              const lastVolume = chart.series[1].points[chart.series[1].points.length - 1];
-              updateHeader({
-                x: lastPoint.x,
-                open: lastPoint.open,
-                high: lastPoint.high,
-                low: lastPoint.low,
-                close: lastPoint.close
-              }, lastVolume);
+          selected: 2,
+          buttons: [{
+            //   type: 'month',
+            //   count: 1,
+            //   text: '1m'
+            // }, {
+            type: 'month',
+            count: 3,
+            text: '3m'
+          }, {
+            type: 'month',
+            count: 6,
+            text: '6m'
+            // }, {
+            //   type: 'ytd',
+            //   text: 'YTD'
+          }, {
+            type: 'year',
+            count: 1,
+            text: '1y'
+            // }, {
+            //   type: 'all',
+            //   text: 'All'
+          }],
+          events: {
+            afterSetExtremes: function (e) {
+              const ma240Series = chart.series[7];  // MA240 的 series
+              const ma240Toggle = $('.ma-toggle[data-series-index="6"]');
+              const ma240Value = $('#ma-value-6');
+
+              const selectedRange = e.max - e.min;
+              const oneYearMs = 365 * 24 * 60 * 60 * 1000;
+
+              if (selectedRange < oneYearMs) {
+                // 時間範圍小於一年時
+                if (ma240Series && ma240Series.visible) {
+                  ma240Series.hide();
+                }
+                ma240Toggle.prop('checked', false);
+                ma240Toggle.prop('disabled', true);
+                ma240Value.text('--');
+              } else {
+                // 時間範圍大於等於一年時
+                ma240Toggle.prop('disabled', false);
+                if (ma240Toggle.prop('checked')) {
+                  ma240Series.show();
+                }
+              }
+
+              // 更新均線值
+              if (chart.series[0].points.length > 0) {
+                const visiblePoints = chart.series[0].points.filter(point =>
+                  point.x >= e.min && point.x <= e.max
+                );
+                if (visiblePoints.length > 0) {
+                  const lastPoint = visiblePoints[visiblePoints.length - 1];
+                  updateMAValues(originalOHLCData, lastPoint.index);
+                }
+              }
             }
           }
-        }
         },
 
         series: [
@@ -319,7 +588,7 @@
             upLineColor: "#ff0000",
             dataGrouping: {
               groupPixelWidth: 20,
-                  forced: true
+              forced: true
             },
             point: {
               events: {
@@ -333,6 +602,8 @@
                       low: this.low,
                       close: this.close
                     }, volumePoint);
+                    // 傳入目前的點位索引
+                    updateMAValues(originalOHLCData, this.index);
                   }
                 }
               }
@@ -344,6 +615,167 @@
             name: "成交量",
             data: [],
             yAxis: 1
+          },
+          {
+            type: 'sma',
+            name: 'MA5',
+            linkedTo: 'stock-candlestick',
+            data: [],
+            params: {
+              period: 5,
+            },
+            color: '#3366FF',
+            lineWidth: 1,
+            dashStyle: 'solid',     // 實線
+            step: false,           // 關閉階梯式
+            enableMouseTracking: false,
+            marker: {
+              enabled: false     // 關閉節點標記
+            },
+            states: {
+              hover: {
+                enabled: false
+              }
+            },
+            animation: false,
+            dataGrouping: {
+              enabled: false  // 關閉資料分組以確保計算正確
+            }
+          },
+          {
+            type: 'sma',
+            name: 'MA10',
+            linkedTo: 'stock-candlestick',
+            data: [],
+            params: {
+              period: 10
+            },
+            color: '#FF9900',
+            lineWidth: 1,
+            dashStyle: 'solid',     // 實線
+            step: false,           // 關閉階梯式
+            enableMouseTracking: false,
+            marker: {
+              enabled: false     // 關閉節點標記
+            },
+            states: {
+              hover: {
+                enabled: false
+              }
+            },
+            animation: false,
+            dataGrouping: {
+              enabled: false  // 關閉資料分組以確保計算正確
+            }
+          },
+          {
+            type: 'sma',
+            name: 'MA20',
+            linkedTo: 'stock-candlestick',
+            data: [],
+            params: {
+              period: 20
+            },
+            color: '#FF0000',
+            lineWidth: 1,
+            dashStyle: 'solid',     // 實線
+            step: false,           // 關閉階梯式
+            enableMouseTracking: false,
+            marker: {
+              enabled: false     // 關閉節點標記
+            },
+            states: {
+              hover: {
+                enabled: false
+              }
+            },
+            animation: false,
+            dataGrouping: {
+              enabled: false  // 關閉資料分組以確保計算正確
+            }
+          },
+          {
+            type: 'sma',
+            name: 'MA60',
+            linkedTo: 'stock-candlestick',
+            data: [],
+            params: {
+              period: 60
+            },
+            color: '#009900',
+            lineWidth: 1,
+            dashStyle: 'solid',     // 實線
+            step: false,           // 關閉階梯式
+            enableMouseTracking: false,
+            marker: {
+              enabled: false     // 關閉節點標記
+            },
+            states: {
+              hover: {
+                enabled: false
+              }
+            },
+            animation: false,
+            dataGrouping: {
+              enabled: false  // 關閉資料分組以確保計算正確
+            }
+          },
+          {
+            type: 'sma',
+            name: 'MA120',
+            linkedTo: 'stock-candlestick',
+            data: [],
+            params: {
+              period: 120
+            },
+            color: '#9933FF',
+            lineWidth: 1,
+            dashStyle: 'solid',     // 實線
+            step: false,           // 關閉階梯式
+            enableMouseTracking: false,
+            marker: {
+              enabled: false     // 關閉節點標記
+            },
+            states: {
+              hover: {
+                enabled: false
+              }
+            },
+            animation: false,
+            dataGrouping: {
+              enabled: false  // 關閉資料分組以確保計算正確
+            }
+          },
+          {
+            type: 'sma',
+            name: 'MA240',
+            linkedTo: 'stock-candlestick',
+            data: [],
+            params: {
+              period: 240
+            },
+            color: '#996633',
+            lineWidth: 1,
+            dashStyle: 'solid',     // 實線
+            step: false,           // 關閉階梯式
+            enableMouseTracking: false,
+            marker: {
+              enabled: false     // 關閉節點標記
+            },
+            states: {
+              hover: {
+                enabled: false
+              }
+            },
+            animation: false,
+            dataGrouping: {
+              forced: true,
+              units: [
+                ['day', [1]]  // 強制使用日資料，不進行分組
+              ],
+              enabled: true
+            },
+
           }
         ],
 
@@ -388,6 +820,9 @@
             chart.series[1].setData(processedVolume, false);
             chart.redraw();
 
+            const lastIndex = originalOHLCData.length - 1;
+            updateMAValues(originalOHLCData, lastIndex);
+
             const [timestamp, open, high, low, close] = originalOHLCData[0];
             const firstVolumePoint = processedVolume[0];
 
@@ -413,44 +848,189 @@
         }
       });
     });
-    </script>
+  </script>
 }
 
 @section Styles {
-    <style>
-        .stock-info {
-            font-family: Arial, sans-serif;
-            padding: 10px;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            background-color: #f8f9fa;
-            border-bottom: 1px solid #e9ecef;
-        }
+  <style>
+    .stock-info {
+      font-family: Arial, sans-serif;
+      padding: 10px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      background-color: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+    }
 
-        .info-item {
-            color: #666;
-        }
+    .info-item {
+      color: #666;
+    }
 
-        .price, .change {
-            font-weight: bold;
-            font-size: 15px;
-        }
+    .price,
+    .change {
+      font-weight: bold;
+      font-size: 15px;
+    }
 
-        .price-up {
-            color: #ff0000;
-        }
+    .price-up {
+      color: #ff0000;
+    }
 
-        .price-down {
-            color: #009900;
-        }
+    .price-down {
+      color: #009900;
+    }
 
-        .chart-container {
-            width: 100%;
-            height: 600px;
-            margin: 0 auto;
-        }
+    .chart-container {
+      width: 100%;
+      height: 600px;
+      margin: 0 auto;
+    }
 
-    </style>
+    .ma-controls {
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      font-size: 14px;
+    }
+
+    .ma-controls label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+
+    .ma-title {
+      color: #666;
+    }
+
+    .ma-value {
+      font-weight: bold;
+    }
+
+    .ma-value[data-ma-index="1"] {
+      color: #3366FF;
+    }
+
+    .ma-value[data-ma-index="2"] {
+      color: #FF9900;
+    }
+
+    .ma-value[data-ma-index="3"] {
+      color: #FF0000;
+    }
+
+    .ma-value[data-ma-index="4"] {
+      color: #009900;
+    }
+
+    .ma-value[data-ma-index="5"] {
+      color: #9933FF;
+    }
+
+    .ma-value[data-ma-index="6"] {
+      color: #996633;
+    }
+
+    .control-panel {
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+    }
+
+    .select-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .chart-type-select {
+      padding: 5px;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+    }
+
+    .settings-btn {
+      padding: 5px 10px;
+      background-color: #fff;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .ma-settings-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+
+    .modal-content {
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      width: 400px;
+    }
+
+    .ma-settings-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+      margin: 20px 0;
+    }
+
+    .ma-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .ma-item label {
+      color: #666;
+      width: 40px;
+    }
+
+    .ma-item input {
+      width: 80px;
+      padding: 5px;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .modal-footer button {
+      padding: 5px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .confirm-btn {
+      background-color: #dc3545;
+      color: #fff;
+      border: none;
+    }
+
+    .reset-btn,
+    .cancel-btn {
+      background-color: #fff;
+      border: 1px solid #ced4da;
+    }
+  </style>
 }

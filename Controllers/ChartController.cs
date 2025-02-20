@@ -55,8 +55,8 @@ namespace HighChartpratice.Controllers
                         code = stockInfo.stock_code,
                         name = stockInfo.stock_name,
                     },
-                    ohlc = ohlcData,
-                    volume = volumeData
+                    ohlc = ohlcData.OrderBy(x => x[0]),
+                    volume = volumeData.OrderBy(x => x[0]),
                 };
             }
         }
