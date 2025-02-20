@@ -9,6 +9,12 @@
       <option value="volume">成交量</option>
     </select>
     <button class="settings-btn">設定</button>
+
+    <select class="chart-type-select">
+      <option value="candlestick">K線及均線</option>
+      <option value="volume">成交量</option>
+    </select>
+    <button class="settings-btn">設定</button>
   </div>
 </div>
 
@@ -95,6 +101,42 @@
   </label>
 </div>
 
+<div class="tech-indicators-controls">
+  <div class="indicator-group">
+    <span class="indicator-title">KD指標</span>
+    <label>
+      <input type="checkbox" class="kd-toggle" checked>顯示
+    </label>
+    <label>
+      週期1:
+      <input type="number" class="kd-period1" value="14" min="1">
+    </label>
+    <label>
+      週期2:
+      <input type="number" class="kd-period2" value="3" min="1">
+    </label>
+  </div>
+
+  <div class="indicator-group">
+    <span class="indicator-title">MACD指標</span>
+    <label>
+      <input type="checkbox" class="macd-toggle" checked>顯示
+    </label>
+    <label>
+      短期:
+      <input type="number" class="macd-short" value="12" min="1">
+    </label>
+    <label>
+      長期:
+      <input type="number" class="macd-long" value="26" min="1">
+    </label>
+    <label>
+      信號線:
+      <input type="number" class="macd-signal" value="9" min="1">
+    </label>
+  </div>
+</div>
+
 <div class="chart-container" id="stockChart"></div>
 
 
@@ -112,12 +154,16 @@
   <script src="https://code.highcharts.com/modules/accessibility.js"></script>
   <script src="https://code.highcharts.com/stock/indicators/indicators.js"></script>
   <script src="https://code.highcharts.com/stock/indicators/sma.js"></script>
+  <script src="https://code.highcharts.com/stock/indicators/stochastic.js"></script>
+  <script src="https://code.highcharts.com/stock/indicators/macd.js"></script>
 
   <script>
     $(document).ready(function () {
       let chart;
       let originalOHLCData = [];
       let originalVolumeData = [];
+      let originalKDData = [];
+      let originalMACDData = [];
 
       // 定義均線顏色映射
       const maColors = {
@@ -410,7 +456,7 @@
                 return Highcharts.numberFormat(this.value, 2);
               }
             },
-            height: "80%",
+            height: "30%",
             gridZIndex: 4,
             showGrid: true,
             minorGridLineWidth: 0,
@@ -441,7 +487,7 @@
                 return Highcharts.numberFormat(this.value, 0);
               }
             },
-            top: "80%",
+            top: "40%",
             height: "20%",
             grid: {
               enabled: true
@@ -466,6 +512,31 @@
                 format: '{value:,.0f}'
               }
             }
+          },
+          {
+            top: '65%',
+                height: '25%',  // KD指標
+            min: 0,
+            max: 100,
+            plotLines: [{
+              value: 20,
+              color: '#FF0000',
+                  dashStyle: 'dash'
+            }, {
+              value: 80,
+              color: '#FF0000',
+              dashStyle: 'dash'
+            }]
+          },
+          {
+            top: '85%',
+                height: '25%',  // MACD指標
+            plotLines: [{
+              value: 0,
+              color: '#000000',
+              width: 1,
+              dashStyle: 'shortDash'
+            }]
           }
         ],
 
@@ -579,6 +650,7 @@
         series: [
           {
             type: "candlestick",
+            yAxis: 0,
             id: "stock-candlestick",
             name: "股價",
             data: [],
@@ -611,6 +683,7 @@
           },
           {
             type: "column",
+            yAxis: 1,
             id: "stock-volume",
             name: "成交量",
             data: [],
@@ -775,7 +848,50 @@
               ],
               enabled: true
             },
-
+          },
+          {
+            type: 'stochastic',  // 使用Highcharts內建的KD指標
+            name: 'KD',
+            yAxis: 2,
+            data: [],
+            params: {
+              periods: [14, 3],  // 週期設定
+              smoothing: 3
+            },
+               color: "#FF0000",   // 設定 %K 線的顏色 (紅色)
+            smoothedLine: {
+                styles: {
+                    lineColor: "#0000FF" // 設定 %D 線的顏色 (藍色)
+                }
+            },  // K線和D線顏色
+            lineWidth: 2,
+          },
+          {
+            type: 'macd',  // 使用Highcharts內建的MACD指標
+            name: 'MACD',
+            yAxis: 3,
+            data: [],
+            params: {
+              shortPeriod: 12,
+              longPeriod: 26,
+              signalPeriod: 9
+            },
+                color: "#FF0000",  // MACD 線顏色 (紅色)
+            macdLine: {
+                styles: {
+                    lineColor: "#FF0000" // 設定 MACD 線顏色 (紅色)
+                }
+            },
+            signalLine: {
+                styles: {
+                    lineColor: "#0000FF" // 設定 Signal 線顏色 (藍色)
+                }
+            },
+            histogram: {
+                color: "#00FF00", // 柱狀圖顏色 (綠色)
+                negativeColor: "#FF0000" // 負值時的顏色 (紅色)
+            },
+            lineWidth: 2,
           }
         ],
 
@@ -809,6 +925,9 @@
 
           originalOHLCData = data.ohlc;
           originalVolumeData = data.volume;
+          originalKDData = data.kd;
+          originalMACDData = data.macd
+
 
           const processedVolume = processVolumeColor(
             originalVolumeData,
@@ -816,9 +935,13 @@
           );
 
           if (chart && originalOHLCData.length > 0) {
+              debugger
             chart.series[0].setData(originalOHLCData, false);
             chart.series[1].setData(processedVolume, false);
-            chart.redraw();
+            chart.series[8].setData(originalKDData, false);
+            chart.series[9].setData(originalMACDData, false);
+
+            chart.redraw(true);
 
             const lastIndex = originalOHLCData.length - 1;
             updateMAValues(originalOHLCData, lastIndex);
@@ -1031,6 +1154,39 @@
     .cancel-btn {
       background-color: #fff;
       border: 1px solid #ced4da;
+    }
+
+    .tech-indicators-controls {
+      display: flex;
+      gap: 20px;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .indicator-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .indicator-title {
+      color: #666;
+      font-weight: bold;
+      margin-right: 10px;
+    }
+
+    .tech-indicators-controls input[type="number"] {
+      width: 60px;
+      padding: 3px;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+    }
+
+    .tech-indicators-controls input[type="checkbox"] {
+      margin-right: 5px;
     }
   </style>
 }
