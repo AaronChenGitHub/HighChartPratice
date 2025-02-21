@@ -101,42 +101,6 @@
   </label>
 </div>
 
-<div class="tech-indicators-controls">
-  <div class="indicator-group">
-    <span class="indicator-title">KD指標</span>
-    <label>
-      <input type="checkbox" class="kd-toggle" checked>顯示
-    </label>
-    <label>
-      週期1:
-      <input type="number" class="kd-period1" value="14" min="1">
-    </label>
-    <label>
-      週期2:
-      <input type="number" class="kd-period2" value="3" min="1">
-    </label>
-  </div>
-
-  <div class="indicator-group">
-    <span class="indicator-title">MACD指標</span>
-    <label>
-      <input type="checkbox" class="macd-toggle" checked>顯示
-    </label>
-    <label>
-      短期:
-      <input type="number" class="macd-short" value="12" min="1">
-    </label>
-    <label>
-      長期:
-      <input type="number" class="macd-long" value="26" min="1">
-    </label>
-    <label>
-      信號線:
-      <input type="number" class="macd-signal" value="9" min="1">
-    </label>
-  </div>
-</div>
-
 <div class="chart-container" id="stockChart"></div>
 
 
@@ -345,7 +309,7 @@
         }
 
         try {
-          const date = Highcharts.dateFormat("%Y-%m-%d", point.x);
+
           const close = point.close;
           const open = point.open;
           const high = point.high;
@@ -358,7 +322,10 @@
             changePercent
           )}%)`;
 
-          $("#date").text(date);
+          // 將時間戳轉換為台灣時間
+          const date = new Date(point.x);
+          const taiwanDate = new Date(date.getTime() + (8 * 60 * 60 * 1000));
+          $("#date").text(Highcharts.dateFormat("%Y-%m-%d", taiwanDate));
           $("#price").text(close.toFixed(0));
           $("#change").text(changeText);
           $("#open").text(open.toFixed(0));
@@ -375,9 +342,59 @@
         }
       }
 
+      function updateVolumeIndicators(volumeData, currentIndex) {
+        if (!volumeData || volumeData.length === 0 || currentIndex < 0) return;
+
+        try {
+          const volumePoint = chart.series[1].points[currentIndex];
+          if (!volumePoint) return;
+
+          const volumeValue = volumePoint.y;
+          const volumePrevPoint = currentIndex > 0 ? chart.series[1].points[currentIndex - 1] : null;
+          const volumePrevValue = volumePrevPoint ? volumePrevPoint.y : volumeValue;
+          const volumeArrow = volumeValue > volumePrevValue ? '↑' : volumeValue < volumePrevValue ? '↓' : '';
+          $('#current-volume').text(Highcharts.numberFormat(volumeValue, 0) + volumeArrow);
+
+          const mv5Series = chart.series.find(s => s.options.name === 'MV5');
+          if (mv5Series && mv5Series.points[currentIndex]) {
+            const mv5Value = mv5Series.points[currentIndex].y;
+            if (typeof mv5Value === 'number') {
+
+              const mv5PrevPoint = currentIndex > 0 ? mv5Series.points[currentIndex - 1] : null;
+              const mv5PrevValue = mv5PrevPoint?.y || mv5Value;
+              const mv5Arrow = mv5Value > mv5PrevValue ? '↑' : mv5Value < mv5PrevValue ? '↓' : '';
+              $('#mv5-value').text(Highcharts.numberFormat(mv5Value, 0) + mv5Arrow);
+            } else {
+              $('#mv5-value').text('--');
+            }
+          }
+
+          const mv20Series = chart.series.find(s => s.options.name === 'MV20');
+          if (mv20Series && mv20Series.points[currentIndex]) {
+            const mv20Value = mv20Series.points[currentIndex].y;
+            if (typeof mv20Value === 'number') {
+              const mv20PrevPoint = currentIndex > 0 ? mv20Series.points[currentIndex - 1] : null;
+              const mv20PrevValue = mv20PrevPoint?.y || mv20Value;
+              const mv20Arrow = mv20Value > mv20PrevValue ? '↑' : mv20Value < mv20PrevValue ? '↓' : '';
+              $('#mv20-value').text(Highcharts.numberFormat(mv20Value, 0) + mv20Arrow);
+            } else {
+              $('#mv20-value').text('--');
+            }
+          }
+        } catch (error) {
+          console.error('Error in updateVolumeIndicators:', error);
+          $('#mv5-value, #mv20-value, #current-volume').text('--');
+        }
+      }
+
       const chartConfig = {
         chart: {
-          animation: false,
+          annotation: false,
+          height: 1500,       // 進一步增加整體高度
+          marginBottom: 120,  // 增加底部邊距
+          marginTop: 30,
+          spacingBottom: 40,  // 增加內部間距
+          spacingTop: 40,
           events: {
             load: function () {
               this.crosshairs = this.xAxis[0].addPlotLine({
@@ -387,6 +404,10 @@
                 dashStyle: 'dash',
                 id: 'crosshair'
               });
+            },
+            time: {
+              timezone: 'Asia/Taipei',  // 設定時區為台北
+              useUTC: false  // 不使用 UTC 時間
             },
             redraw: function () {
               const lastPoint = this.series[0].points[this.series[0].points.length - 1];
@@ -401,11 +422,11 @@
                 }, lastVolume);
 
                 updateMAValues(originalOHLCData, lastPoint.index);
+                updateVolumeIndicators(originalVolumeData, lastPoint.index);
               }
             }
           }
         },
-
         title: {
           text: "",
           align: "center",
@@ -430,7 +451,7 @@
           gridLineDashStyle: 'dash',
           crosshair: {
             enabled: true,
-            color: '#cccccc',
+            color: 'gray',
             width: 1,
             snap: true,
             dashStyle: 'dash',
@@ -445,7 +466,7 @@
             formatter: function () {
               return Highcharts.dateFormat('%Y/%m/%d', this.value);
             }
-          }
+          },
         },
 
         yAxis: [
@@ -456,7 +477,10 @@
                 return Highcharts.numberFormat(this.value, 2);
               }
             },
-            height: "30%",
+            height: "40%",
+            top: "0%",
+            offset: 0,     // 調整軸的位置
+            margin: 0,     // 調整軸的邊距
             gridZIndex: 4,
             showGrid: true,
             minorGridLineWidth: 0,
@@ -464,11 +488,11 @@
             gridLineColor: '#f0f0f0',
             gridLineDashStyle: 'dash',
             resize: {
-              enabled: true
+              enabled: false
             },
             crosshair: {
               enabled: true,
-              color: '#cccccc',
+              color: 'gray',
               width: 1,
               dashStyle: 'dash',
               snap: true,
@@ -478,17 +502,37 @@
                 backgroundColor: 'rgba(10, 10, 100, 0.75)',
                 format: '{value:.2f}'
               }
-            }
+            },
           },
           {
+            plotLines: [{
+              value: 100000,  // 在軸的頂部
+              width: 0,  // 不顯示線
+              label: {
+                text: `<div class="volume-info" style="margin-top: 10px; margin-bottom: 5px; padding: 5px 10px; background-color: #fff; border-radius: 4px;">
+                        <span>成交量</span>
+                        <span>MV5: </span><span id="mv5-value">--</span>
+                        <span>MV20: </span><span id="mv20-value">--</span>
+                            <span>量: </span><span id="current-volume">--</span>
+                      </div>`,
+                useHTML: true,
+                align: 'left',
+                x: 10,
+                y: -90,  // 調整垂直位置
+                style: {
+                  color: '#666666'
+                }
+              }
+            }],
             labels: {
               align: "left",
+              x: 5,
               formatter: function () {
                 return Highcharts.numberFormat(this.value, 0);
               }
             },
-            top: "40%",
-            height: "20%",
+            top: "45%",
+            height: "12%",
             grid: {
               enabled: true
             },
@@ -498,13 +542,17 @@
             gridLineWidth: 1,
             gridLineColor: '#f0f0f0',
             gridLineDashStyle: 'dash',
-            offset: 0,
+            offset: 0,      // 調整軸的位置
+            margin: 35,
+            resize: {
+              enabled: false
+            },
             crosshair: {
               enabled: true,
-              color: '#cccccc',
+              color: 'gray',
               width: 1,
               dashStyle: 'dash',
-              snap: true,
+              snap: false,
               label: {
                 enabled: true,
                 padding: 5,
@@ -514,14 +562,36 @@
             }
           },
           {
+            labels: {
+              align: "left",
+              formatter: function () {
+                return Highcharts.numberFormat(this.value, 2);
+              }
+            },
             top: '65%',
-                height: '25%',  // KD指標
-            min: 0,
-            max: 100,
+            height: '12%',  // KD指標
+            offset: 0,       // 調整軸的位置
+            margin: 35,
+            resize: {
+              enabled: false
+            },
+            crosshair: {
+              enabled: true,
+              color: 'gray',
+              width: 1,
+              dashStyle: 'dash',
+              snap: true,
+              label: {
+                enabled: true,
+                padding: 5,
+                backgroundColor: 'rgba(10, 10, 100, 0.75)',
+                format: '{value:,.0f}'
+              }
+            },
             plotLines: [{
               value: 20,
               color: '#FF0000',
-                  dashStyle: 'dash'
+              dashStyle: 'dash'
             }, {
               value: 80,
               color: '#FF0000',
@@ -529,8 +599,32 @@
             }]
           },
           {
+            labels: {
+              align: "left",
+              formatter: function () {
+                return Highcharts.numberFormat(this.value, 2);
+              }
+            },
             top: '85%',
-                height: '25%',  // MACD指標
+            height: '12%',  // MACD指標
+            offset: 0,       // 調整軸的位置
+            margin: 35,
+            resize: {
+              enabled: false
+            },
+            crosshair: {
+              enabled: true,
+              color: 'gray',
+              width: 1,
+              dashStyle: 'dash',
+              snap: true,
+              label: {
+                enabled: true,
+                padding: 5,
+                backgroundColor: 'rgba(10, 10, 100, 0.75)',
+                format: '{value:,.0f}'
+              }
+            },
             plotLines: [{
               value: 0,
               color: '#000000',
@@ -573,7 +667,7 @@
         plotOptions: {
           series: {
             animation: false,
-            stickyTracking: true,
+            stickyTracking: false,
             lastVisiblePrice: {
               enabled: true,
               label: {
@@ -586,10 +680,6 @@
         rangeSelector: {
           selected: 2,
           buttons: [{
-            //   type: 'month',
-            //   count: 1,
-            //   text: '1m'
-            // }, {
             type: 'month',
             count: 3,
             text: '3m'
@@ -597,16 +687,10 @@
             type: 'month',
             count: 6,
             text: '6m'
-            // }, {
-            //   type: 'ytd',
-            //   text: 'YTD'
           }, {
             type: 'year',
             count: 1,
             text: '1y'
-            // }, {
-            //   type: 'all',
-            //   text: 'All'
           }],
           events: {
             afterSetExtremes: function (e) {
@@ -658,9 +742,10 @@
             upColor: "#ff0000",
             lineColor: "#009900",
             upLineColor: "#ff0000",
+            enableMouseTracking: true,
             dataGrouping: {
               groupPixelWidth: 20,
-              forced: true
+              forced: false
             },
             point: {
               events: {
@@ -676,6 +761,7 @@
                     }, volumePoint);
                     // 傳入目前的點位索引
                     updateMAValues(originalOHLCData, this.index);
+                    updateVolumeIndicators(originalVolumeData, this.index);
                   }
                 }
               }
@@ -687,7 +773,29 @@
             id: "stock-volume",
             name: "成交量",
             data: [],
-            yAxis: 1
+            yAxis: 1,
+            stickyTracking: false,
+            enableMouseTracking: true,
+            point: {
+              events: {
+                mouseOver: function () {
+                  // 找到對應的 K線點位索引
+                  const candlePoint = chart.series[0].points[this.index];
+                  if (candlePoint) {
+                    updateHeader({
+                      x: candlePoint.x,
+                      open: candlePoint.open,
+                      high: candlePoint.high,
+                      low: candlePoint.low,
+                      close: candlePoint.close
+                    }, this);
+                    // 傳入目前的點位索引
+                    updateMAValues(originalOHLCData, this.index);
+                    updateVolumeIndicators(originalVolumeData, this.index);
+                  }
+                }
+              }
+            }
           },
           {
             type: 'sma',
@@ -853,45 +961,93 @@
             type: 'stochastic',  // 使用Highcharts內建的KD指標
             name: 'KD',
             yAxis: 2,
+            stickyTracking: false,
+            enableMouseTracking: true,
+            linkedTo: 'stock-candlestick',
             data: [],
             params: {
               periods: [14, 3],  // 週期設定
               smoothing: 3
             },
-               color: "#FF0000",   // 設定 %K 線的顏色 (紅色)
+            color: "#FF0000",   // 設定 %K 線的顏色 (紅色)
             smoothedLine: {
-                styles: {
-                    lineColor: "#0000FF" // 設定 %D 線的顏色 (藍色)
-                }
+              styles: {
+                lineColor: "#0000FF" // 設定 %D 線的顏色 (藍色)
+              }
             },  // K線和D線顏色
-            lineWidth: 2,
+            lineWidth: 1,
           },
           {
             type: 'macd',  // 使用Highcharts內建的MACD指標
             name: 'MACD',
             yAxis: 3,
+            stickyTracking: false,
+            enableMouseTracking: true,
+            linkedTo: 'stock-candlestick',
             data: [],
             params: {
               shortPeriod: 12,
               longPeriod: 26,
               signalPeriod: 9
             },
-                color: "#FF0000",  // MACD 線顏色 (紅色)
+            color: "#FF0000",  // MACD 線顏色 (紅色)
             macdLine: {
-                styles: {
-                    lineColor: "#FF0000" // 設定 MACD 線顏色 (紅色)
-                }
+              styles: {
+                lineColor: "#FF0000" // 設定 MACD 線顏色 (紅色)
+              }
             },
             signalLine: {
-                styles: {
-                    lineColor: "#0000FF" // 設定 Signal 線顏色 (藍色)
-                }
+              styles: {
+                lineColor: "#0000FF" // 設定 Signal 線顏色 (藍色)
+              }
             },
             histogram: {
-                color: "#00FF00", // 柱狀圖顏色 (綠色)
-                negativeColor: "#FF0000" // 負值時的顏色 (紅色)
+              color: "#00FF00", // 柱狀圖顏色 (綠色)
+              negativeColor: "#FF0000" // 負值時的顏色 (紅色)
             },
-            lineWidth: 2,
+            lineWidth: 1,
+          },
+          {
+            type: 'sma',
+            name: 'MV5',
+            linkedTo: 'stock-volume',
+            yAxis: 1,
+            data: [],
+            params: {
+              period: 5,
+            },
+            color: '#3366FF',
+            lineWidth: 1,
+            dashStyle: 'solid',
+            step: false,
+            enableMouseTracking: false,
+            marker: { enabled: false },
+            states: { hover: { enabled: false } },
+            animation: false,
+            dataGrouping: {
+              enabled: false,
+            }
+          },
+          {
+            type: 'sma',
+            name: 'MV20',
+            linkedTo: 'stock-volume',
+            yAxis: 1,
+            data: [],
+            params: {
+              period: 20,
+            },
+            color: '#FF9900',
+            lineWidth: 1,
+            dashStyle: 'solid',
+            step: false,
+            enableMouseTracking: false,
+            marker: { enabled: false },
+            states: { hover: { enabled: false } },
+            animation: false,
+            dataGrouping: {
+              enabled: false,
+            }
           }
         ],
 
@@ -923,10 +1079,17 @@
             chart.setTitle({ text: `${data.stockInfo.name}(${data.stockInfo.code})` });
           }
 
-          originalOHLCData = data.ohlc;
-          originalVolumeData = data.volume;
-          originalKDData = data.kd;
-          originalMACDData = data.macd
+          originalOHLCData = data.ohlc.map(item => {
+            const [timestamp, ...rest] = item;
+            // 加入 8 小時的毫秒數 (8 * 60 * 60 * 1000)
+            return [timestamp + 28800000, ...rest];
+          });
+
+          originalVolumeData = data.volume.map(item => {
+            const [timestamp, volume] = item;
+            return [timestamp + 28800000, volume];
+          });
+
 
 
           const processedVolume = processVolumeColor(
@@ -935,16 +1098,15 @@
           );
 
           if (chart && originalOHLCData.length > 0) {
-              debugger
+            debugger
             chart.series[0].setData(originalOHLCData, false);
             chart.series[1].setData(processedVolume, false);
-            chart.series[8].setData(originalKDData, false);
-            chart.series[9].setData(originalMACDData, false);
 
             chart.redraw(true);
 
             const lastIndex = originalOHLCData.length - 1;
             updateMAValues(originalOHLCData, lastIndex);
+            updateVolumeIndicators(originalVolumeData, lastIndex);
 
             const [timestamp, open, high, low, close] = originalOHLCData[0];
             const firstVolumePoint = processedVolume[0];
@@ -1007,7 +1169,7 @@
 
     .chart-container {
       width: 100%;
-      height: 600px;
+      height: 1500px;
       margin: 0 auto;
     }
 
@@ -1187,6 +1349,35 @@
 
     .tech-indicators-controls input[type="checkbox"] {
       margin-right: 5px;
+    }
+
+    .volume-info {
+      display: flex;
+      gap: 15px;
+      padding: 5px;
+      background-color: white;
+      border: none;
+      border-radius: 4px;
+    }
+
+    .volume-info span:nth-child(2) {
+      color: #3366FF;
+      font-weight: bold;
+    }
+
+    .volume-info span:nth-child(3) {
+      color: #3366FF;
+      font-weight: bold;
+    }
+
+    .volume-info span:nth-child(4) {
+      color: #dc3545;
+      font-weight: bold;
+    }
+
+    .volume-info span:nth-child(5) {
+      color: #dc3545;
+      font-weight: bold;
     }
   </style>
 }
